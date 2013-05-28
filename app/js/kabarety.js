@@ -4,6 +4,7 @@ var URL = require('url');
 var CHEERIO = require('cheerio');
 var REQUEST = require('request');
 var FUTURES = require('futures');
+var ASYNC = require('async');
 
 
 
@@ -98,8 +99,114 @@ var videoGrabber = function() {
 //            }
 //        });  
 
-        test(url);
+//        test(url);
+        test2(url);
         return state;
+    };
+    
+    function test2(url){
+        ASYNC.waterfall([
+            function(callback) {
+                getIdvParamFormAddress(url, callback);
+            },  
+            function(idv, callback) {
+                getObjectIdFromPageSkecz(idv, callback);
+            },        
+            function(objectId, tvpUrl, callback) {
+                processObjectId(objectId, tvpUrl, callback);
+            },         
+            function(frameUrl, callback) {
+                processFrameContent(frameUrl, callback);
+            }                                
+        ], function(err, result){
+            if(err != null) {
+                console.log("FATAL ERROR: " + JSON.stringify(err));
+            } else {
+                console.log("OKIDOKI");
+            }
+        });
+        
+        
+        console.log("dupa");
+    };
+    
+    function getIdvParamFormAddress(url, next) {
+        console.log("RUN request");
+        REQUEST(url, function(err, response, body){
+            $ = CHEERIO.load(body);
+            var idv = $(CONSTANTS.kabaretMainIDVparam).val();
+            console.log("idv: " + idv);
+            next(null, idv);
+        });
+    };
+    
+    function getObjectIdFromPageSkecz(idv, next){
+        var url = CONSTANTS.kabaretLoadSkecz + idv;
+        console.log("Getting: " + url);
+        REQUEST(url,function(err, response, body){ 
+            $ = CHEERIO.load(body);
+            var tvpUrl = $(CONSTANTS.kabaretIframe).attr('src');
+            console.log("tvpUrl: " + tvpUrl);
+            var objectId = getTvpObjectIdFromURL(tvpUrl);
+            console.log("objectId: " + objectId);
+
+            next(null, objectId, tvpUrl);
+        });
+    };
+    
+    function processTvpVideoInfo(objectId, next){
+        var urlInfo = CONSTANTS.tvpVideoInfo + objectId;
+        REQUEST(urlInfo, function(err, response, body){
+            console.log("Getting: " + urlInfo);
+            var json = JSON.parse(body);
+            console.log("VideoUrl: " + json.video_url);
+            spawnVLC(json.video_url); 
+            next(err);
+        });
+    }
+         
+    function runVlc(objectId, next) {
+        ASYNC.waterfall([
+            function(callback){
+                processTvpVideoInfo(objectId, callback);
+            }
+        ], function(err, result){
+            if(err != null) {
+                console.log("FATAL ERROR: " + JSON.stringify(err));
+            }
+            next(err);
+        });   
+    } 
+     
+    function processObjectId(objectId, tvpUrl, next){
+        console.log("Trying to launch player..");
+        if (objectId != 'player') {
+            console.log("Trigger vlc...")
+            runVlc(objectId, next);        
+        } else {
+            console.log("processing tvpurl")
+            next(null, tvpUrl);
+        }
+    }; 
+    
+    function processFrameContent(iframeUrl, next){
+        console.log("Looking for objectId in body...");
+        console.log("Getting iframeUrl: " + iframeUrl);
+        REQUEST(iframeUrl, function(err, response, body, next){
+            $ = CHEERIO.load(body);
+            var tvpUrl = $(CONSTANTS.initParams).attr("value");
+            var arr = tvpUrl.split(",");
+            var objectId = "xxxxx";
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i].indexOf("video_id") == 0) {
+                    objectId = arr[i].split("=")[1];
+                    break;
+                }
+            }
+            console.log("video_id param: " + objectId);
+            console.log("commented")
+            runVlc(objectId, next);
+        }); 
     };
     
     
