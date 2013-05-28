@@ -11,12 +11,13 @@ var EventType = {
     PlayerObjectId: "playerEvent",
     NumberObjectId: "numberEvent",
     SpawnVlc: "SpawnVlcEvent",
-    EndRequest: "endEvent"
+    EndRequest: "endEvent",
+    ErrorEvent: "errorEvent"
 
 }
 
 function VideoGrabber() {
-    
+
     var res = null;
     var eventBus = new Events.EventEmitter();
 
@@ -36,7 +37,7 @@ function VideoGrabber() {
         return state;
     }
 
-    this.getAddressParam = function (request) {
+    this.getAddressParam = function(request) {
         var urlInfo = URL.parse(request.url, true);
         return urlInfo.query.address;
     }
@@ -120,8 +121,8 @@ function VideoGrabber() {
         });
     }
     ;
-    
-    this.process = function(url, response){
+
+    this.process = function(url, response) {
         res = response;
         eventBus.emit(EventType.BeginProcess, url);
     }
@@ -150,7 +151,7 @@ function VideoGrabber() {
         console.log("====> EVENT: " + EventType.PlayerObjectId);
         processFrameContent(iframeUrl);
     });
-    
+
     eventBus.on(EventType.EndRequest, function() {
         console.log("====> EVENT: " + EventType.EndRequest);
         res.writeHead(200, {'Content-Type': 'text/html'});
@@ -160,6 +161,12 @@ function VideoGrabber() {
         console.log("DONE");
         res.end();
     });
+
+    eventBus.on(EventType.ErrorEvent, function(error) {
+        console.log("====> EVENT: " + EventType.ErrorEvent);
+        //TODO error handling
+    });
+
 }
 ;
 
@@ -169,5 +176,5 @@ HTTP.createServer(function(req, res) {
 
     var url = vg.getAddressParam(req);
     vg.process(url, res);
-    
+
 }).listen(9000);
