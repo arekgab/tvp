@@ -46,11 +46,15 @@ function VideoGrabber() {
     function getIdvParamFormAddress(url) {
         console.log("RUN request");
         REQUEST(url, function(err, response, body) {
-            $ = CHEERIO.load(body);
-            var idv = $(CONSTANTS.kabaretMainIDVparam).val();
-            console.log("idv: " + idv);
+            if (!err && response.statusCode == 200) {
+                $ = CHEERIO.load(body);
+                var idv = $(CONSTANTS.kabaretMainIDVparam).val();
+                console.log("idv: " + idv);
 
-            eventBus.emit(EventType.IdvEvent, idv);
+                eventBus.emit(EventType.IdvEvent, idv);
+            } else {
+                eventBus.emit(EventType.ErrorEvent, err);
+            }
         });
     }
     ;
@@ -64,16 +68,20 @@ function VideoGrabber() {
         var url = CONSTANTS.kabaretLoadSkecz + idv;
         console.log("Getting: " + url);
         REQUEST(url, function(err, response, body) {
-            $ = CHEERIO.load(body);
-            var tvpUrl = $(CONSTANTS.kabaretIframe).attr('src');
-            console.log("tvpUrl: " + tvpUrl);
-            var objectId = getTvpObjectIdFromURL(tvpUrl);
-            console.log("objectId: " + objectId);
+            if (!err && response.statusCode == 200) {
+                $ = CHEERIO.load(body);
+                var tvpUrl = $(CONSTANTS.kabaretIframe).attr('src');
+                console.log("tvpUrl: " + tvpUrl);
+                var objectId = getTvpObjectIdFromURL(tvpUrl);
+                console.log("objectId: " + objectId);
 
-            if (objectId == "player") {
-                eventBus.emit(EventType.PlayerObjectId, tvpUrl);
+                if (objectId == "player") {
+                    eventBus.emit(EventType.PlayerObjectId, tvpUrl);
+                } else {
+                    eventBus.emit(EventType.NumberObjectId, objectId);
+                }
             } else {
-                eventBus.emit(EventType.NumberObjectId, objectId);
+                eventBus.emit(EventType.ErrorEvent, err);
             }
         });
     }
@@ -83,11 +91,15 @@ function VideoGrabber() {
     function processTvpVideoInfo(objectId) {
         var urlInfo = CONSTANTS.tvpVideoInfo + objectId;
         REQUEST(urlInfo, function(err, response, body) {
-            console.log("Getting: " + urlInfo);
-            var json = JSON.parse(body);
-            console.log("VideoUrl: " + json.video_url);
+            if (!err && response.statusCode == 200) {
+                console.log("Getting: " + urlInfo);
+                var json = JSON.parse(body);
+                console.log("VideoUrl: " + json.video_url);
 
-            eventBus.emit(EventType.SpawnVlc, json.video_url);
+                eventBus.emit(EventType.SpawnVlc, json.video_url);
+            } else {
+                eventBus.emit(EventType.ErrorEvent, err);
+            }
         });
     }
     ;
@@ -104,19 +116,23 @@ function VideoGrabber() {
         console.log("Looking for objectId in body...");
         console.log("Getting iframeUrl: " + iframeUrl);
         REQUEST(iframeUrl, function(err, response, body, next) {
-            $ = CHEERIO.load(body);
-            var tvpUrl = $(CONSTANTS.initParams).attr("value");
-            var arr = tvpUrl.split(",");
-            var objectId = "xxxxx";
-            for (var i = 0; i < arr.length; i++) {
-                if (arr[i].indexOf("video_id") == 0) {
-                    objectId = arr[i].split("=")[1];
-                    break;
+            if (!err && response.statusCode == 200) {
+                $ = CHEERIO.load(body);
+                var tvpUrl = $(CONSTANTS.initParams).attr("value");
+                var arr = tvpUrl.split(",");
+                var objectId = "xxxxx";
+                for (var i = 0; i < arr.length; i++) {
+                    if (arr[i].indexOf("video_id") == 0) {
+                        objectId = arr[i].split("=")[1];
+                        break;
+                    }
                 }
-            }
-            console.log("video_id param: " + objectId);
+                console.log("video_id param: " + objectId);
 
-            eventBus.emit(EventType.NumberObjectId, objectId);
+                eventBus.emit(EventType.NumberObjectId, objectId);
+            } else {
+                eventBus.emit(EventType.ErrorEvent, err);
+            }
             ;
         });
     }
@@ -164,7 +180,12 @@ function VideoGrabber() {
 
     eventBus.on(EventType.ErrorEvent, function(error) {
         console.log("====> EVENT: " + EventType.ErrorEvent);
-        //TODO error handling
+        res.writeHead(500, {'Content-Type': 'application/json'});
+
+        res.write(JSON.stringify(error));
+
+        console.log("ERROR: " + JSON.stringify(error));
+        res.end();
     });
 
 }
